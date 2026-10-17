@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EgyTrain - التتبع الجغرافي المباشر والتنبيه اللحظي</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --primary: #c0392b;
+            --secondary: #2c3e50;
+            --accent: #f39c12;
+            --bg: #f8f9fa;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* شاشة التسجيل البسيطة */
+        #registration-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        .modal-content h2 {
+            color: var(--primary);
+            margin-bottom: 12px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+            text-align: right;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .btn-submit {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            width: 100%;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        /* الهيدر */
+        header {
+            background: var(--secondary);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-welcome {
+            font-size: 0.85rem;
+            background: rgba(255,255,255,0.15);
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        /* الهيكل الرئيسي */
+        .main-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 60px);
+            overflow: hidden;
+        }
+
+        #map {
+            flex: 2;
+            height: 100%;
+        }
+
+        .sidebar {
+            flex: 1;
+            max-width: 380px;
+            background: white;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .section-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: var(--secondary);
+            margin-bottom: 8px;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 4px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .search-box button {
+            background: var(--secondary);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .direction-btn-group {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .btn-dir {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid var(--secondary);
+            background: #fff;
+            color: var(--secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .btn-dir.active {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .gps-status-card {
+            background: #e8f8f5;
+            border: 1px solid #a3e4d7;
+            color: #117a65;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+
+        .notification-box {
+            background: #fef9e7;
+            border: 1px solid #f9e79f;
+            color: #7d6608;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .comments-list {
+            max-height: 90px;
+            overflow-y: auto;
+            margin-bottom: 8px;
+        }
+
+        .comment-item {
+            background: #f1f2f6;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+        }
+
+        .comment-input-group {
+            display: flex;
+            gap: 5px;
+        }
+
+        .comment-input-group input {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .comment-input-group button {
+            background: var(--secondary);
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-sim {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            background: #e74c3c;
+            color: white;
+            margin-top: 8px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; }
+            .sidebar { max-width: 100%; height: 50%; }
+            #map { height: 50%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- نافذة تسجيل البيانات -->
+    <div id="registration-modal">
+        <div class="modal-content">
+            <h2>مرحباً بك في EgyTrain 🚆</h2>
+            <p style="margin-bottom: 12px; font-size: 0.85rem; color: #666;">سجل اسمك وسيتم ربط التنبيه بموقعك المباشر لحظة بلحظة</p>
+            
+            <form id="regForm">
+                <div class="form-group">
+                    <label>الاسم بالكامل:</label>
+                    <input type="text" id="userName" placeholder="مثال: مينا عدلي" required>
+                </div>
+                <button type="submit" class="btn-submit">تفعيل التتبع الجغرافي والدخول</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- الهيدر -->
+    <header>
+        <h3>🚆 EgyTrain - التتبع المباشر</h3>
+        <div class="user-welcome" id="userWelcomeBadge">غير مسجل</div>
+    </header>
+
+    <!-- الواجهة الرئيسية -->
+    <div class="main-container">
+        
+        <div class="sidebar">
+            
+            <!-- كارت الـ GPS وموقعك المباشر -->
+            <div class="gps-status-card">
+                📍 موقعك الحقيقي المباشر: <strong id="userCurrentPosLabel">دمنهور (جاري التحديد...)</strong>
+            </div>
+
+            <!-- رسالة تنبيه الاقتراب المباشر (قبل 30 دقيقة من موقعك) -->
+            <div id="notificationBox" class="notification-box">
+                🔔 <strong>تنبيه اقتراب القطر:</strong> القطر باقي له أقل من 30 دقيقة للوصول لموقعك!
+            </div>
+
+            <!-- التحكم وتحديد مسار السفر -->
+            <div class="section-card">
+                <div class="section-title">🔍 تحديد القطر والاتجاه</div>
+                
+                <div class="direction-btn-group">
+                    <button class="btn-dir active" id="btnDirSouth" onclick="setDirection('south')">⬇️ بحري إلى قبلي (الإسكندرية ⬅️ القاهرة ⬅️ أسوان)</button>
+                    <button class="btn-dir" id="btnDirNorth" onclick="setDirection('north')">⬆️ قبلي إلى بحري (أسوان ⬅️ القاهرة ⬅️ الإسكندرية)</button>
+                </div>
+
+                <div class="search-box">
+                    <input type="text" id="trainSearchInput" placeholder="أدخل رقم القطر (مثلاً: 905 أو 980)">
+                    <button id="btnSearchTrain">بحث</button>
+                </div>
+
+                <div style="font-size: 0.85rem; line-height: 1.6; margin-top: 10px;">
+                    <p><strong>القطار المتابع:</strong> <span id="selectedTrainNo" style="color: var(--primary); font-weight: bold;">905 مباشر</span></p>
+                    <p><strong>الموقع الحالي للقطر:</strong> <span id="trainCurrentLocationLabel" style="color:#d35400; font-weight:bold;">أبو حمص</span></p>
+                    <p><strong>الزمن المتبقي لوصول القطر لموقعك المباشر:</strong> <span id="etaTime" style="color: #c0392b; font-weight: bold; font-size: 1.1rem;">-- دقيقة</span></p>
+                </div>
+
+                <button class="btn-sim" id="btnToggleSim">بدء حركة القطر والمحاكاة ▷</button>
+            </div>
+
+            <!-- ملاحظات المسافرين -->
+            <div class="section-card">
+                <div class="section-title">💬 ملاحظات الركاب الحية</div>
+                <div class="comments-list" id="commentsList">
+                    <div class="comment-item"><strong>مسافر:</strong> القطر تحرك من أبو حمص وفي طريقه لدمنهور.</div>
+                </div>
+                <div class="comment-input-group">
+                    <input type="text" id="commentInput" placeholder="اكتب ملاحظة...">
+                    <button id="btnAddComment">إرسال</button>
+                </div>
+            </div>
+
+            <!-- اطمئنان الأهل -->
+            <div class="section-card" style="background: #ebf5fb; border-color: #aed6f1;">
+                <div class="section-title" style="color: #2980b9; border-color: #3498db;">🛡️ خدمة اطمئنان الأهل</div>
+                <p style="font-size: 0.78rem; color: #555;">
+                    أهلك يقدروا يعرفوا مكان القطر المباشر وهيوصل عندك في دمنهور أو القوصية إمتى حتى لو موبايلك فصل.
+                </p>
+            </div>
+
+        </div>
+
+        <!-- الخريطة -->
+        <div id="map"></div>
+
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // خط السكة الحديد من الإسكندرية بحري وحتى أسوان قبلي مروراً بكل المراكز (دمنهور، أبو حمص، القوصية...)
+        const stations = [
+            { name: "الإسكندرية", lat: 31.1979, lng: 29.8925 },
+            { name: "أبو حمص", lat: 31.0990, lng: 30.3070 },
+            { name: "دمنهور", lat: 31.0379, lng: 30.4682 },
+            { name: "إيتاي البارود", lat: 30.8872, lng: 30.6631 },
+            { name: "القاهرة", lat: 30.0634, lng: 31.2468 },
+            { name: "الجيزة", lat: 30.0104, lng: 31.2066 },
+            { name: "المنيا", lat: 28.1099, lng: 30.7503 },
+            { name: "القوصية", lat: 27.4422, lng: 30.8174 },
+            { name: "أسيوط", lat: 27.1801, lng: 31.1837 },
+            { name: "أسوان", lat: 24.0889, lng: 32.8998 }
+        ];
+
+        // موقع المستخدم الافتراضي (دمنهور)
+        let userPos = { name: "دمنهور", lat: 31.0379, lng: 30.4682 };
+
+        const map = L.map('map').setView([30.8, 30.5], 8);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+        const lineCoords = stations.map(s => [s.lat, s.lng]);
+        L.polyline(lineCoords, { color: '#c0392b', weight: 4, opacity: 0.7, dashArray: '8, 8' }).addTo(map);
+
+        stations.forEach(s => {
+            L.circleMarker([s.lat, s.lng], { radius: 6, fillColor: "#2c3e50", color: "#fff", weight: 2, fillOpacity: 1 }).addTo(map).bindPopup(`<b>محطة/مركز ${s.name}</b>`);
+        });
+
+        let trainIndex = 0;
+        let progress = 0;
+        let isSimulating = false;
+        let simInterval = null;
+        let userData = { name: '' };
+        let hasNotified = false;
+        let currentTrainNumber = "905 مباشر";
+        let direction = 'south';
+
+        const trainIcon = L.divIcon({ html: '<div style="font-size:24px;">🚆</div>', className: 'train-icon', iconSize: [30, 30] });
+        const userIcon = L.divIcon({ html: '<div style="font-size:24px;">📍</div>', className: 'user-icon', iconSize: [30, 30] });
+
+        const trainMarker = L.marker([stations[0].lat, stations[0].lng], { icon: trainIcon }).addTo(map);
+        const userMarker = L.marker([userPos.lat, userPos.lng], { icon: userIcon }).addTo(map).bindPopup("<b>موقعك المباشر الحالي (دمنهور)</b>");
+
+        // تسجيل البيانات
+        document.getElementById('regForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            userData.name = document.getElementById('userName').value;
+
+            document.getElementById('userWelcomeBadge').innerText = `أهلاً بك يا ${userData.name}.. نتمنى لك رحلة سعيدة وتوصل بالسلامة! 🚆✨`;
+            document.getElementById('registration-modal').style.display = 'none';
+
+            getRealGPS();
+
+            if ("Notification" in window) { Notification.requestPermission(); }
+        });
+
+        // الحصول على الـ GPS الفعلي لجهازك لو متاح
+        function getRealGPS() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    userPos.lat = position.coords.latitude;
+                    userPos.lng = position.coords.longitude;
+                    userPos.name = "موقعك المباشر (GPS)";
+                    userMarker.setLatLng([userPos.lat, userPos.lng]).bindPopup("<b>موقعك الفعلي الحالي</b>").openPopup();
+                    document.getElementById('userCurrentPosLabel').innerText = userPos.name;
+                }, () => {
+                    document.getElementById('userCurrentPosLabel').innerText = "دمنهور (افتراضي)";
+                });
+            }
+        }
+
+        function setDirection(dir) {
+            direction = dir;
+            document.getElementById('btnDirSouth').classList.toggle('active', dir === 'south');
+            document.getElementById('btnDirNorth').classList.toggle('active', dir === 'north');
+            trainIndex = 0;
+            progress = 0;
+            hasNotified = false;
+        }
+
+        document.getElementById('btnSearchTrain').addEventListener('click', function() {
+            const val = document.getElementById('trainSearchInput').value.trim();
+            if (val !== "") {
+                currentTrainNumber = val;
+                document.getElementById('selectedTrainNo').innerText = val;
+            }
+        });
+
+        // تحديث حركة القطر وحساب المسافة المباشرة لموقعك
+        function updateTrainPosition() {
+            let routeStations = direction === 'south' ? stations : [...stations].reverse();
+
+            if (trainIndex >= routeStations.length - 1) { trainIndex = 0; progress = 0; }
+
+            const currentStation = routeStations[trainIndex];
+            const nextStation = routeStations[trainIndex + 1];
+
+            const currentLat = currentStation.lat + (nextStation.lat - currentStation.lat) * progress;
+            const currentLng = currentStation.lng + (nextStation.lng - currentStation.lng) * progress;
+
+            trainMarker.setLatLng([currentLat, currentLng]);
+
+            document.getElementById('trainCurrentLocationLabel').innerText = currentStation.name;
+
+            // حساب المسافة المباشرة بالـ GPS بين نقطة القطر ونقطة موقعك الحالية
+            const distInKm = Math.hypot((userPos.lat - currentLat) * 111, (userPos.lng - currentLng) * 111);
+            let estimatedMinutes = Math.max(2, Math.round(distInKm * 1.2)); // تقدير الزمن بناءً على سرعة القطر
+
+            document.getElementById('etaTime').innerText = `${estimatedMinutes} دقيقة`;
+            
+            // إرسال النوتيفيكيشن المباشرة لو القطر في موقع سابق وقرب منك بـ 30 دقيقة أو أقل
+            if (estimatedMinutes <= 30 && !hasNotified) {
+                triggerDirectGPSNotification(estimatedMinutes, currentStation.name);
+                hasNotified = true;
+            }
+
+            progress += 0.05;
+            if (progress >= 1) { progress = 0; trainIndex++; }
+        }
+
+        function triggerDirectGPSNotification(mins, trainLoc) {
+            const box = document.getElementById('notificationBox');
+            box.style.display = 'block';
+            box.innerHTML = `🔔 <strong>تنبيه اقتراب القطر:</strong> القطر رقم <strong>${currentTrainNumber}</strong> حالياً في (<strong>${trainLoc}</strong>) وباقي له <strong>${mins} دقيقة</strong> للوصول لموقعك المباشر! جهّز نفسك.`;
+
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(`تنبيه وصول القطر 🚆`, {
+                    body: `القطر رقم ${currentTrainNumber} في ${trainLoc} وقرب يوصل لموقعك خلال ${mins} دقيقة!`,
+                    icon: "https://cdn-icons-png.flaticon.com/512/713/713322.png"
+                });
+            }
+        }
+
+        document.getElementById('btnToggleSim').addEventListener('click', function() {
+            if (isSimulating) {
+                clearInterval(simInterval);
+                this.innerText = "بدء حركة القطر والمحاكاة ▷";
+                this.style.background = "#e74c3c";
+            } else {
+                simInterval = setInterval(updateTrainPosition, 1000);
+                this.innerText = "إيقاف مؤقت ⏸";
+                this.style.background = "#27ae60";
+            }
+            isSimulating = !isSimulating;
+        });
+
+        document.getElementById('btnAddComment').addEventListener('click', function() {
+            const input = document.getElementById('commentInput');
+            if (input.value.trim() !== '') {
+                const list = document.getElementById('commentsList');
+                const newItem = document.createElement('div');
+                newItem.className = 'comment-item';
+                newItem.innerHTML = `<strong>${userData.name || 'مسافر'}:</strong> ${input.value}`;
+                list.prepend(newItem);
+                input.value = '';
+            }
+        });
+    </script>
+</body>
+</html>
